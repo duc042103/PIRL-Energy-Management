@@ -82,8 +82,8 @@ class HEVPhysics(nn.Module):
         on = torch.sigmoid((P_eng - 1500.0) / 400.0)  # "may bat" dang mem -> kha vi
         return on * (self.f0 + self.f1 * P_eng + self.f2 * P_eng ** 2)
 
-    def step(self, soc, v, acc, P_eng):
-        """f_phys: (SOC, v, a, P_eng) -> (SOC_next, fuel). Phuong trinh pin R_int."""
+    def step_detail(self, soc, v, acc, P_eng):
+        """Nhu step() nhung tra ve them P_req, P_batt, dong dien I (dung cho benchmark)."""
         P_req = self.power_demand(v, acc)
         P_b_min, P_b_max = self.battery_limits(soc)
         P_batt = torch.clamp(P_req - P_eng, P_b_min, P_b_max)   # du thua khi phanh -> phanh co
@@ -91,7 +91,13 @@ class HEVPhysics(nn.Module):
         disc = torch.clamp(V ** 2 - 4 * self.R * P_batt, min=1.0)
         I = (V - torch.sqrt(disc)) / (2 * self.R)
         soc_next = soc - I * self.dt / self.Q
-        return soc_next, self.fuel_rate(P_eng) * self.dt
+        return dict(soc_next=soc_next, fuel=self.fuel_rate(P_eng) * self.dt,
+                    P_req=P_req, P_batt=P_batt, I=I, Voc=V)
+
+    def step(self, soc, v, acc, P_eng):
+        """f_phys: (SOC, v, a, P_eng) -> (SOC_next, fuel). Phuong trinh pin R_int."""
+        d = self.step_detail(soc, v, acc, P_eng)
+        return d['soc_next'], d['fuel']
 
 
 PHYS = HEVPhysics()
