@@ -210,7 +210,7 @@ class DDPGAgent:
 def train(algo, episodes, seed, gamma=0.99, tag=None):
     torch.manual_seed(seed); np.random.seed(seed); torch.set_num_threads(1)
     v, acc = load_cycle(TRAIN_CYCLE)
-    agent = PIRLAgent() if algo == 'pirl' else DDPGAgent(gamma=gamma)
+    agent = PIRLAgent(gamma=gamma) if algo == 'pirl' else DDPGAgent(gamma=gamma)
 
     if algo == 'pirl':
         def on_step(s, P_cmd, r, s_next):
@@ -249,7 +249,7 @@ def train(algo, episodes, seed, gamma=0.99, tag=None):
 def load_policy(tag):
     meta = json.load(open(os.path.join(RUN_DIR, tag + '.json')))
     if meta['algo'] == 'pirl':
-        agent = PIRLAgent()
+        agent = PIRLAgent(gamma=meta['gamma'])
     else:
         agent = DDPGAgent(gamma=meta['gamma'])
     agent.actor.load_state_dict(torch.load(os.path.join(RUN_DIR, tag + '.pt')))
@@ -266,7 +266,7 @@ def evaluate():
         tag = os.path.basename(p)[:-5]
         meta = json.load(open(p))
         name = f"{meta['algo'].upper()}-{meta['episodes']}ep"
-        if meta['algo'] == 'ddpg' and meta['gamma'] != 0.99:
+        if meta['gamma'] != 0.99:
             name += f"-g{meta['gamma']}"
         groups.setdefault(name, []).append(tag)
 

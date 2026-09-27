@@ -18,6 +18,7 @@ from benchmark import RUN_DIR, RES_DIR, TRAIN_CYCLE, TEST_CYCLES  # noqa: E402
 
 COLORS = {'DP': '#52514e', 'PIRL-30ep': '#2a78d6', 'DDPG-30ep': '#eb6834',
           'DDPG-100ep': '#1baf7a', 'DDPG-30ep-g0.9': '#eda100', 'DDPG-100ep-g0.9': '#e87ba4',
+          'PIRL-100ep': '#4a3aa7', 'PIRL-30ep-g0.9': '#008300', 'PIRL-100ep-g0.9': '#e34948',
           'Rule': '#b5b3ab'}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
 plt.rcParams.update({'font.size': 9, 'axes.edgecolor': MUTED, 'axes.labelcolor': INK,
@@ -59,7 +60,7 @@ def load():
 
 
 def methods_of(res):
-    order = ['DP', 'PIRL-30ep', 'DDPG-30ep', 'DDPG-100ep', 'DDPG-30ep-g0.9', 'DDPG-100ep-g0.9', 'Rule']
+    order = ['DP', 'PIRL-30ep', 'PIRL-30ep-g0.9', 'PIRL-100ep', 'PIRL-100ep-g0.9', 'DDPG-30ep', 'DDPG-100ep', 'DDPG-30ep-g0.9', 'DDPG-100ep-g0.9', 'Rule']
     have = list(next(iter(res['nominal'].values())).keys())
     return [m for m in order if m in have] + [m for m in have if m not in order]
 
@@ -115,7 +116,7 @@ def training_table():
     for p in sorted(glob.glob(os.path.join(RUN_DIR, '*.json'))):
         meta = json.load(open(p))
         name = f"{meta['algo'].upper()}-{meta['episodes']}ep"
-        if meta['algo'] == 'ddpg' and meta['gamma'] != 0.99:
+        if meta['gamma'] != 0.99:
             name += f"-g{meta['gamma']}"
         groups.setdefault(name, []).append(meta)
     lines = ['| Thuật toán | Số seed | Thời gian train (phút) | Vi phạm ràng buộc khi train (tổng) '

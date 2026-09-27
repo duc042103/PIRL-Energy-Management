@@ -151,10 +151,11 @@ class PhysicsCritic(nn.Module):
     v', a' la van toc/gia toc buoc sau lay tu chu trinh lai (ngoai sinh).
     """
 
-    def __init__(self):
+    def __init__(self, gamma=GAMMA):
         super().__init__()
         self.feat = PhysicsFeatureLayer()
         self.V = mlp(6, 1)
+        self.gamma = gamma
 
     def value(self, s):
         return self.V(self.feat(s))
@@ -163,15 +164,15 @@ class PhysicsCritic(nn.Module):
         soc_next, fuel = PHYS.step(s[:, 0:1], s[:, 1:2], s[:, 2:3], P_eng)  # vat ly
         r = reward_phys(soc_next, fuel)                                       # vat ly
         s_next = torch.cat([soc_next, exo_next], dim=1)
-        return r + GAMMA * self.value(s_next)                                 # NN
+        return r + self.gamma * self.value(s_next)                                 # NN
 
 
 # =============================================================================
 # 3. PIRL AGENT
 # =============================================================================
 class PIRLAgent:
-    def __init__(self, lr_a=1e-3, lr_c=1e-3, tau=0.005, buffer=100_000):
-        self.actor, self.critic = Actor(), PhysicsCritic()
+    def __init__(self, lr_a=1e-3, lr_c=1e-3, tau=0.005, buffer=100_000, gamma=GAMMA):
+        self.actor, self.critic = Actor(), PhysicsCritic(gamma)
         self.actor_t, self.critic_t = copy.deepcopy(self.actor), copy.deepcopy(self.critic)
         self.opt_a = torch.optim.Adam(self.actor.parameters(), lr=lr_a)
         self.opt_c = torch.optim.Adam(self.critic.parameters(), lr=lr_c)
