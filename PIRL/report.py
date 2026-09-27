@@ -14,11 +14,14 @@ import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from benchmark import RUN_DIR, RES_DIR, TRAIN_CYCLE, TEST_CYCLES  # noqa: E402
+from benchmark import RUN_DIR, RES_DIR, TRAIN_CYCLE, TEST_CYCLES, EQ_FACTOR, LHV  # noqa: E402
 
-COLORS = {'DP': '#52514e', 'PIRL-30ep': '#2a78d6', 'DDPG-30ep': '#eb6834',
-          'DDPG-100ep': '#1baf7a', 'DDPG-30ep-g0.9': '#eda100', 'DDPG-100ep-g0.9': '#e87ba4',
-          'PIRL-100ep': '#4a3aa7', 'PIRL-30ep-g0.9': '#008300', 'PIRL-100ep-g0.9': '#e34948',
+# Quy doi SOC "bat loi": nap lai pin bang dong co hieu suat 25%, hieu suat sac 85%
+EQ_CONS = 1 / (0.25 * 0.85 * LHV)
+
+COLORS = {'DP': '#52514e', 'PIRL-30ep-g0.9': '#2a78d6', 'DDPG-30ep-g0.9': '#eb6834',
+          'DDPG-100ep-g0.9': '#1baf7a', 'PIRL-100ep': '#4a3aa7', 'PIRL-30ep': '#e87ba4',
+          'DDPG-30ep': '#eda100', 'DDPG-100ep': '#008300', 'PIRL-100ep-g0.9': '#e34948',
           'Rule': '#b5b3ab'}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
 plt.rcParams.update({'font.size': 9, 'axes.edgecolor': MUTED, 'axes.labelcolor': INK,
@@ -33,6 +36,7 @@ SHORT = {c: c.replace('Standard_', '').replace('_2', '').replace('-2', '') for c
 METRICS = [
     ('fuel_eq_L100', 'Nhiên liệu quy đổi SOC', 'L/100km', True, '{:.3f}'),
     ('gap_dp', 'Chênh lệch so với DP', '%', True, '{:+.2f}'),
+    ('fuel_eq_cons_L100', 'Nhiên liệu quy đổi SOC (hệ số bất lợi)', 'L/100km', True, '{:.3f}'),
     ('energy_kWh100', 'Tổng năng lượng (nhiên liệu + pin)', 'kWh/100km', True, '{:.2f}'),
     ('eng_eff', 'Hiệu suất TB động cơ', '%', False, '{:.2f}'),
     ('eng_starts', 'Số lần khởi động máy', '', True, '{:.1f}'),
@@ -55,6 +59,8 @@ def load():
             for runs in R.values():
                 for m in runs:
                     m['gap_dp'] = 100 * (m['fuel_eq_L100'] / dp - 1)
+                    m['fuel_eq_cons_L100'] = m['fuel_L100'] + \
+                        (m['fuel_eq_L100'] - m['fuel_L100']) * EQ_CONS / EQ_FACTOR
                     m['eng_eff'] = m['eng_eff'] * 100 if m['eng_eff'] < 1.5 else m['eng_eff']
     return res
 
@@ -195,7 +201,7 @@ def fig_learning(groups, path, keep):
     axs[0].set_ylim(top=min(axs[0].get_ylim()[1], 8))
     axs[0].set_title('Nhiên liệu quy đổi trên UDDS sau mỗi episode', loc='left', color=INK)
     axs[0].set_xlabel('Episode'); axs[0].set_ylabel('L/100km'); axs[0].legend()
-    axs[1].set_title('Số bước vi phạm ràng buộc trong mỗi episode train', loc='left', color=INK)
+    axs[1].set_title('Số bước action bị supervisor sửa khi train', loc='left', color=INK)
     axs[1].set_xlabel('Episode'); axs[1].set_ylabel('bước / episode')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
@@ -239,6 +245,8 @@ def main():
     t_gap, _ = per_cycle_table(res, 'nominal', 'gap_dp', '{:+.2f}')
     t_mis, wins_mis = per_cycle_table(res, 'mismatch', 'fuel_eq_L100', '{:.3f}')
     t_abl, _ = per_cycle_table(res, 'nominal', 'throughput_Ah', '{:.2f}')
+    t_cons, _ = per_cycle_table(res, 'nominal', 'fuel_eq_cons_L100', '{:.3f}')
+    t_ohm, _ = per_cycle_table(res, 'nominal', 'ohmic_loss_kJ', '{:.1f}')
     fig_gap(res, os.path.join(RES_DIR, 'fig_gap_to_dp.png'))
     fig_learning(groups, os.path.join(RES_DIR, 'fig_learning.png'), selected(res))
     fig_soc(res, os.path.join(RES_DIR, 'fig_soc.png'))
@@ -246,8 +254,10 @@ def main():
     out = {'summary_nominal': summary_table(res, 'nominal'),
            'summary_mismatch': summary_table(res, 'mismatch'),
            'per_cycle_fuel': t_fuel, 'per_cycle_gap': t_gap, 'per_cycle_mismatch': t_mis,
-           'per_cycle_throughput': t_abl, 'training': tt,
-           'wins': wins, 'wins_mismatch': wins_mis, 'selected': selected(res)}
+           'per_cycle_throughput': t_abl, 'per_cycle_fuel_conservative': t_cons,
+           'per_cycle_ohmic': t_ohm, 'training': tt,
+           'wins': [int(x) for x in wins], 'wins_mismatch': [int(x) for x in wins_mis],
+           'selected': selected(res)}
     with open(os.path.join(RES_DIR, 'tables.md'), 'w') as f:
         for k, v in out.items():
             f.write(f'### {k}\n\n{v}\n\n')

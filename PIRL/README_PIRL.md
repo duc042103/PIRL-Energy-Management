@@ -115,3 +115,9 @@ PIRL tiết kiệm khoảng 5–7% nhiên liệu so với rule-based trên cả 
 - Để giữ ví dụ đơn giản, môi trường dùng **cùng** mô hình `HEVPhysics` với mạng. Trong thực tế, môi trường nên là `Prius_model_new.py` (bản đồ BSFC, hiệu suất motor/generator). Khi đó `HEVPhysics` là mô hình gần đúng, và có thể thêm một NN residual `ΔSOC_φ(s,a)` học phần sai lệch giữa hai mô hình.
 - Có thể biến tham số vật lý (ví dụ `R`, `Q` của pin) thành `nn.Parameter` và học từ dữ liệu. Khi đó physics layer trở thành *grey-box*.
 - Có thể thêm loss dạng PINN, ví dụ phạt `‖SOC'_pred − (SOC − I·dt/Q)‖²` nếu dùng một mạng dự đoán động học.
+
+---
+
+## 5. Benchmark với DDPG và DP
+
+Xem [`BENCHMARK.md`](BENCHMARK.md). Bộ benchmark gồm 10 chu trình lái chưa dùng để train, cộng thêm kịch bản xe có tham số khác mô hình, và đo các chỉ số về năng lượng và pin.

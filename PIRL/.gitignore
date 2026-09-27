@@ -1,5 +1,4 @@
 pirl_actor.pt
-runs/log_*.txt
 __pycache__/
-runs/
-results/
+runs/log*.txt
+runs/jobs*.txt
