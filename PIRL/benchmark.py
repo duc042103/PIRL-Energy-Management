@@ -238,7 +238,7 @@ def train(algo, episodes, seed, gamma=0.99, tag=None):
         print(f"[{algo} s{seed}] ep {ep:3d} fuel_eq {ev['fuel_eq_L100']:.3f} L/100km "
               f"SOC_end {ev['soc_end']:.3f} interv(train) {log[-1]['train_interventions']}", flush=True)
 
-    tag = tag or f'{algo}_e{episodes}_s{seed}'
+    tag = tag or f'{algo}_e{episodes}' + (f'_g{gamma}' if gamma != 0.99 else '') + f'_s{seed}'
     os.makedirs(RUN_DIR, exist_ok=True)
     torch.save(agent.actor.state_dict(), os.path.join(RUN_DIR, tag + '.pt'))
     with open(os.path.join(RUN_DIR, tag + '.json'), 'w') as f:

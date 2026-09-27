@@ -17,7 +17,8 @@ sys.path.insert(0, HERE)
 from benchmark import RUN_DIR, RES_DIR, TRAIN_CYCLE, TEST_CYCLES  # noqa: E402
 
 COLORS = {'DP': '#52514e', 'PIRL-30ep': '#2a78d6', 'DDPG-30ep': '#eb6834',
-          'DDPG-100ep': '#1baf7a', 'Rule': '#b5b3ab'}
+          'DDPG-100ep': '#1baf7a', 'DDPG-30ep-g0.9': '#eda100', 'DDPG-100ep-g0.9': '#e87ba4',
+          'Rule': '#b5b3ab'}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
 plt.rcParams.update({'font.size': 9, 'axes.edgecolor': MUTED, 'axes.labelcolor': INK,
                      'xtick.color': MUTED, 'ytick.color': MUTED, 'axes.spines.top': False,
@@ -58,7 +59,7 @@ def load():
 
 
 def methods_of(res):
-    order = ['DP', 'PIRL-30ep', 'DDPG-30ep', 'DDPG-100ep', 'Rule']
+    order = ['DP', 'PIRL-30ep', 'DDPG-30ep', 'DDPG-100ep', 'DDPG-30ep-g0.9', 'DDPG-100ep-g0.9', 'Rule']
     have = list(next(iter(res['nominal'].values())).keys())
     return [m for m in order if m in have] + [m for m in have if m not in order]
 
@@ -157,8 +158,6 @@ def fig_gap(res, path):
 def fig_learning(groups, path):
     fig, axs = plt.subplots(1, 2, figsize=(10, 3.4))
     for name, metas in groups.items():
-        if '-g' in name:
-            continue
         f = np.array([[e['eval_fuel_eq_L100'] for e in m['log']] for m in metas])
         iv = np.array([[e['train_interventions'] for e in m['log']] for m in metas])
         ep = np.arange(1, f.shape[1] + 1)
@@ -177,7 +176,9 @@ def fig_learning(groups, path):
 def fig_soc(res, path):
     tr = np.load(os.path.join(RES_DIR, 'soc_traces.npz'))
     cycles = ['Standard_NEDC', 'FTP75-2', 'Standard_US06_2']
-    methods = [m for m in ['DP', 'PIRL-30ep', 'DDPG-100ep', 'DDPG-30ep'] if f'nominal|{cycles[0]}|{m}' in tr]
+    ddpg = [m for m in methods_of(res) if m.startswith('DDPG')]
+    best = min(ddpg, key=lambda m: np.mean([agg(res['nominal'][c], m, 'fuel_eq_L100')[0] for c in TEST_CYCLES]))
+    methods = ['DP', 'PIRL-30ep', best]
     fig, axs = plt.subplots(len(cycles), 1, figsize=(10, 7), sharex=False)
     for ax, c in zip(axs, cycles):
         for m in methods:
