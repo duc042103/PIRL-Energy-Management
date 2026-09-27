@@ -166,42 +166,52 @@ def tune_classic():
     json.dump({k: v[0] for k, v in best.items()}, open(os.path.join(RES_DIR, 'classic_params.json'), 'w'))
 
 
-def evaluate(tags=None):
-    torch.set_num_threads(4)
+def evaluate_one(plant_name, job):
+    """Danh gia DP + moi policy tren 1 cong viec, 1 kich ban -> results/partial/*.json (chay song song duoc)."""
+    torch.set_num_threads(1)
     cp = json.load(open(os.path.join(RES_DIR, 'classic_params.json')))
-    sel = json.load(open(os.path.join(RES_DIR, 'selected.json')))       # {name: [tags]}
+    sel = json.load(open(os.path.join(RES_DIR, 'selected.json')))       # {ten: [tags]}
+    plant = PHYS if plant_name == 'nominal' else plant_mismatch()
+    cyc = make_cycle(job, seed=999 if job == 'train_mixed' else 0)
+    t0 = time.time()
+    pols = {'DP': [A.DPPolicy(cyc, plant)],
+            'A-ECMS': [A.ECMSPolicy(**cp['ecms'], phys=plant)],
+            'Rule': [A.RulePolicy(**cp['rule'], phys=plant)]}
+    for name, ts in sel.items():
+        pols[name] = [load_policy(t)[0] for t in ts]
+    R, traces = {}, {}
+    for name, ps in pols.items():
+        R[name] = []
+        for i, p in enumerate(ps):
+            if hasattr(p, 'reset'):
+                p.reset()
+            tr = simulate(p, cyc, plant=plant)
+            R[name].append({k: float(v) for k, v in metrics(tr, plant).items()})
+            if i == 0:
+                traces[f'{plant_name}|{job}|{name}'] = np.stack(
+                    [tr['soc'], tr['Tb'], tr['P_eng'], tr['P_pump'], tr['curtail'], tr['n']])
+    os.makedirs(os.path.join(RES_DIR, 'partial'), exist_ok=True)
+    json.dump(R, open(os.path.join(RES_DIR, 'partial', f'{plant_name}__{job}.json'), 'w'))
+    np.savez_compressed(os.path.join(RES_DIR, 'partial', f'{plant_name}__{job}.npz'), **traces)
+    print(f'{plant_name:8s} {job:18s} ({time.time() - t0:.0f}s) ' +
+          ' '.join(f"{m}={np.mean([x['fuel_eq_Lh'] for x in R[m]]):.2f}" for m in R), flush=True)
+
+
+def merge():
     results, traces = {}, {}
-    for plant_name, plant in (('nominal', PHYS), ('mismatch', plant_mismatch())):
-        results[plant_name] = {}
-        for job in ['train_mixed'] + TEST_JOBS:
-            cyc = make_cycle(job, seed=999 if job == 'train_mixed' else 0)
-            R = results[plant_name][job] = {}
-            t0 = time.time()
-            pols = {'DP': [A.DPPolicy(cyc, plant)],
-                    'A-ECMS': [A.ECMSPolicy(**cp['ecms'], phys=plant)],
-                    'Rule': [A.RulePolicy(**cp['rule'], phys=plant)]}
-            for name, ts in sel.items():
-                pols[name] = [load_policy(t)[0] for t in ts]
-            for name, ps in pols.items():
-                R[name] = []
-                for i, p in enumerate(ps):
-                    if hasattr(p, 'reset'):
-                        p.reset()
-                    tr = simulate(p, cyc, plant=plant)
-                    R[name].append({k: float(v) for k, v in metrics(tr, plant).items()})
-                    if i == 0 and job in ('trenching', 'pipe_lifting', 'heavy_dig'):
-                        traces[f'{plant_name}|{job}|{name}'] = np.stack([tr['soc'], tr['Tb'], tr['P_eng'],
-                                                                         tr['P_pump'], tr['curtail']])
-            print(f'{plant_name:8s} {job:18s} ({time.time() - t0:.0f}s) ' +
-                  ' '.join(f"{m}={np.mean([x['fuel_eq_Lh'] for x in R[m]]):.2f}" for m in R), flush=True)
-    os.makedirs(RES_DIR, exist_ok=True)
+    for p in sorted(glob.glob(os.path.join(RES_DIR, 'partial', '*.json'))):
+        plant, job = os.path.basename(p)[:-5].split('__')
+        results.setdefault(plant, {})[job] = json.load(open(p))
+        traces.update(dict(np.load(p[:-5] + '.npz')))
     json.dump(results, open(os.path.join(RES_DIR, 'results.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(RES_DIR, 'traces.npz'), **traces)
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['train', 'tune-classic', 'evaluate'])
+    ap.add_argument('cmd', choices=['train', 'tune-classic', 'evaluate', 'merge'])
+    ap.add_argument('--plant', default='nominal')
+    ap.add_argument('--job', default='trenching')
     ap.add_argument('--algo', choices=list(ALGOS))
     ap.add_argument('--gamma', type=float, default=0.95)
     ap.add_argument('--seed', type=int, default=0)
@@ -211,5 +221,7 @@ if __name__ == '__main__':
         train(a.algo, a.gamma, a.seed, a.episodes)
     elif a.cmd == 'tune-classic':
         tune_classic()
+    elif a.cmd == 'evaluate':
+        evaluate_one(a.plant, a.job)
     else:
-        evaluate()
+        merge()
