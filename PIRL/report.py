@@ -40,7 +40,8 @@ METRICS = [
     ('ohmic_loss_kJ', 'Tổn hao nhiệt I²R trong pin', 'kJ', True, '{:.1f}'),
     ('I_rms', 'Dòng pin RMS', 'A', True, '{:.1f}'),
     ('I_peak', 'Dòng pin đỉnh', 'A', True, '{:.1f}'),
-    ('interventions', 'Số lần vi phạm ràng buộc (bị supervisor sửa)', '', True, '{:.1f}'),
+    ('interventions', 'Số bước action bị supervisor sửa (tổng)', '', True, '{:.1f}'),
+    ('interv_batt', '… trong đó vi phạm giới hạn pin/SOC', '', True, '{:.1f}'),
 ]
 
 

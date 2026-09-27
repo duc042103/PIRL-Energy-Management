@@ -55,7 +55,7 @@ def simulate(policy, v, acc, soc0=SOC_REF, plant=PHYS, on_step=None):
     """Chay 1 chu trinh. Bo giam sat (supervisor) chieu P_eng vao mien kha thi cua xe
     - neu action cua agent bi sua thi dem la 1 lan 'can thiep' (vi pham rang buoc)."""
     soc = soc0
-    tr = {k: [] for k in ('soc', 'P_eng', 'P_batt', 'P_req', 'I', 'Voc', 'fuel', 'interv', 'unmet')}
+    tr = {k: [] for k in ('soc', 'P_eng', 'P_batt', 'P_req', 'I', 'Voc', 'fuel', 'interv', 'interv_batt', 'unmet')}
     for k in range(len(v) - 1):
         s = np.array([soc, v[k], acc[k]], dtype=np.float32)
         P_cmd = float(policy(s))
@@ -70,6 +70,7 @@ def simulate(policy, v, acc, soc0=SOC_REF, plant=PHYS, on_step=None):
         tr['P_req'].append(P_req); tr['I'].append(d['I'].item()); tr['Voc'].append(d['Voc'].item())
         tr['fuel'].append(d['fuel'].item())
         tr['interv'].append(abs(P - P_cmd) > 100.0)
+        tr['interv_batt'].append(abs(P - P_cmd) > 100.0 and P_req > 0)   # dung gioi han pin/SOC
         tr['unmet'].append(max(0.0, P_req - P - P_batt) if P_req > 0 else 0.0)
         if on_step is not None:
             r = reward_phys(soc_next, d['fuel'].item())
@@ -105,6 +106,7 @@ def metrics(tr, v, plant=PHYS):
         'I_peak': float(np.abs(I).max()),
         # ---- an toan ----
         'interventions': int(tr['interv'].sum()),
+        'interv_batt': int(tr['interv_batt'].sum()),
         'unmet_kJ': float(tr['unmet'].sum() / 1000),
     }
 
