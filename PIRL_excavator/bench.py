@@ -151,13 +151,13 @@ def tune_classic():
     """Luoi tham so cho Rule va A-ECMS tren chu trinh validation (giong cach chon gamma cho RL)."""
     val = make_cycle(*VAL)
     best = {}
-    for tau_f in [1.0, 2.0, 4.0, 8.0]:
-        for k in [4e5, 8e5, 1.6e6, 3.2e6]:
+    for tau_f in [0.5, 1.0, 2.0, 4.0]:
+        for k in [1.6e6, 3.2e6, 6.4e6, 1.28e7, 2.56e7]:
             m = metrics(simulate(A.RulePolicy(tau_f, k), val))
             if 'rule' not in best or m['return'] > best['rule'][1]:
                 best['rule'] = ({'tau_f': tau_f, 'k_soc': k}, m['return'], m['fuel_eq_Lh'])
-    for s0 in [0.9, 1.1, 1.2, 1.3, 1.5]:
-        for kp in [30.0, 60.0, 120.0, 240.0]:
+    for s0 in [0.9, 1.0, 1.1, 1.2, 1.3]:
+        for kp in [120.0, 240.0, 480.0, 960.0, 1920.0]:
             m = metrics(simulate(A.ECMSPolicy(s0, kp), val))
             if 'ecms' not in best or m['return'] > best['ecms'][1]:
                 best['ecms'] = ({'s0': s0, 'kp': kp}, m['return'], m['fuel_eq_Lh'])
