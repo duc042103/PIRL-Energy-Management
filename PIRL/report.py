@@ -65,6 +65,20 @@ def methods_of(res):
     return [m for m in order if m in have] + [m for m in have if m not in order]
 
 
+def selected(res):
+    """Moi (thuat toan, so episode) chon bien the gamma tot nhat tren chu trinh TRAIN (UDDS)
+    - khong nhin vao chu trinh test."""
+    best = {}
+    for m in methods_of(res):
+        if m in ('DP', 'Rule'):
+            continue
+        key = m.split('-g')[0]
+        f = agg(res['nominal'][TRAIN_CYCLE], m, 'fuel_eq_L100')[0]
+        if key not in best or f < best[key][1]:
+            best[key] = (m, f)
+    return [v[0] for v in best.values()]
+
+
 def agg(R, method, key):
     """mean, std qua cac seed."""
     x = np.array([m[key] for m in R[method]], dtype=float)
@@ -75,25 +89,35 @@ def fmt_ms(mean, std, f, show_std):
     return f.format(mean) + (f' ± {f.format(std).lstrip("+")}' if show_std and std > 0 else '')
 
 
-def per_cycle_table(res, plant, key, f):
-    methods = methods_of(res)
-    lines = ['| Chu trình | ' + ' | '.join(methods) + ' | PIRL tốt hơn DDPG? |',
-             '|' + '---|' * (len(methods) + 2)]
-    wins = 0
+def per_cycle_table(res, plant, key, f, low=True):
+    """Bang theo chu trinh cho cac cau hinh da chon (+ DP, Rule).
+    Cot cuoi: PIRL-30ep co tot hon DDPG cung ngan sach (30ep) / DDPG gap 3.3x ngan sach (100ep)?"""
+    sel = selected(res)
+    methods = ['DP'] + sel + ['Rule']
+    p30 = [m for m in sel if m.startswith('PIRL-30ep')][0]
+    d30 = [m for m in sel if m.startswith('DDPG-30ep')][0]
+    d100 = [m for m in sel if m.startswith('DDPG-100ep')][0]
+    better = (lambda a, b: a < b) if low else (lambda a, b: a > b)
+    lines = ['| Chu trình | ' + ' | '.join(methods) + f' | {p30} vs {d30} | {p30} vs {d100} |',
+             '|' + '---|' * (len(methods) + 3)]
+    wins = [0, 0]
     for cyc in [TRAIN_CYCLE] + TEST_CYCLES:
         R = res[plant][cyc]
         vals = {m: agg(R, m, key) for m in methods}
         rl = [m for m in methods if m not in ('DP', 'Rule')]
-        best = min(rl, key=lambda m: vals[m][0])
-        ddpg_best = min((vals[m][0] for m in rl if m.startswith('DDPG')), default=np.inf)
-        win = vals['PIRL-30ep'][0] < ddpg_best
-        wins += win and cyc != TRAIN_CYCLE
+        best = (min if low else max)(rl, key=lambda m: vals[m][0])
+        w = [better(vals[p30][0], vals[d30][0]), better(vals[p30][0], vals[d100][0])]
+        if cyc != TRAIN_CYCLE:
+            wins = [wins[0] + w[0], wins[1] + w[1]]
         cells = []
         for m in methods:
             c = fmt_ms(*vals[m], f, m not in ('DP', 'Rule'))
             cells.append(f'**{c}**' if m == best else c)
         name = SHORT[cyc] + (' *(train)*' if cyc == TRAIN_CYCLE else '')
-        lines.append(f'| {name} | ' + ' | '.join(cells) + f" | {'✅' if win else '❌'} |")
+        lines.append(f'| {name} | ' + ' | '.join(cells) + ' | ' +
+                     ' | '.join('✅' if x else '❌' for x in w) + ' |')
+    lines.append(f'| **Thắng / 10 chu trình test** | ' + ' | ' * (len(methods) - 1) +
+                 f' | **{wins[0]}/10** | **{wins[1]}/10** |')
     return '\n'.join(lines), wins
 
 
@@ -138,7 +162,7 @@ def training_table():
 
 # ------------------------------------------------------------------ figures
 def fig_gap(res, path):
-    methods = [m for m in methods_of(res) if m != 'DP']
+    methods = selected(res) + ['Rule']
     cycles = TEST_CYCLES
     fig, ax = plt.subplots(figsize=(10, 3.8))
     w = 0.8 / len(methods)
@@ -156,9 +180,11 @@ def fig_gap(res, path):
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
-def fig_learning(groups, path):
+def fig_learning(groups, path, keep):
     fig, axs = plt.subplots(1, 2, figsize=(10, 3.4))
     for name, metas in groups.items():
+        if name not in keep:
+            continue
         f = np.array([[e['eval_fuel_eq_L100'] for e in m['log']] for m in metas])
         iv = np.array([[e['train_interventions'] for e in m['log']] for m in metas])
         ep = np.arange(1, f.shape[1] + 1)
@@ -177,9 +203,10 @@ def fig_learning(groups, path):
 def fig_soc(res, path):
     tr = np.load(os.path.join(RES_DIR, 'soc_traces.npz'))
     cycles = ['Standard_NEDC', 'FTP75-2', 'Standard_US06_2']
-    ddpg = [m for m in methods_of(res) if m.startswith('DDPG')]
-    best = min(ddpg, key=lambda m: np.mean([agg(res['nominal'][c], m, 'fuel_eq_L100')[0] for c in TEST_CYCLES]))
-    methods = ['DP', 'PIRL-30ep', best]
+    sel = selected(res)
+    pirl = [m for m in sel if m.startswith('PIRL-30ep')][0]
+    ddpg = [m for m in sel if m.startswith('DDPG-100ep')][0]
+    methods = ['DP', pirl, ddpg]
     fig, axs = plt.subplots(len(cycles), 1, figsize=(10, 7), sharex=False)
     for ax, c in zip(axs, cycles):
         for m in methods:
@@ -191,7 +218,7 @@ def fig_soc(res, path):
 
 
 def fig_battery(res, path):
-    methods = methods_of(res)
+    methods = ['DP'] + selected(res) + ['Rule']
     keys = [('throughput_Ah', 'Lưu lượng Ah'), ('ohmic_loss_kJ', 'Tổn hao I²R (kJ)'),
             ('I_rms', 'Dòng RMS (A)'), ('soc_rms', 'RMS(SOC − 0.6)')]
     fig, axs = plt.subplots(1, 4, figsize=(11, 3))
@@ -213,14 +240,14 @@ def main():
     t_mis, wins_mis = per_cycle_table(res, 'mismatch', 'fuel_eq_L100', '{:.3f}')
     t_abl, _ = per_cycle_table(res, 'nominal', 'throughput_Ah', '{:.2f}')
     fig_gap(res, os.path.join(RES_DIR, 'fig_gap_to_dp.png'))
-    fig_learning(groups, os.path.join(RES_DIR, 'fig_learning.png'))
+    fig_learning(groups, os.path.join(RES_DIR, 'fig_learning.png'), selected(res))
     fig_soc(res, os.path.join(RES_DIR, 'fig_soc.png'))
     fig_battery(res, os.path.join(RES_DIR, 'fig_battery.png'))
     out = {'summary_nominal': summary_table(res, 'nominal'),
            'summary_mismatch': summary_table(res, 'mismatch'),
            'per_cycle_fuel': t_fuel, 'per_cycle_gap': t_gap, 'per_cycle_mismatch': t_mis,
            'per_cycle_throughput': t_abl, 'training': tt,
-           'wins': wins, 'wins_mismatch': wins_mis}
+           'wins': wins, 'wins_mismatch': wins_mis, 'selected': selected(res)}
     with open(os.path.join(RES_DIR, 'tables.md'), 'w') as f:
         for k, v in out.items():
             f.write(f'### {k}\n\n{v}\n\n')
