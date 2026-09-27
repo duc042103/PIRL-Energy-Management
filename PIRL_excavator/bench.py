@@ -59,7 +59,7 @@ def simulate(policy, cyc, soc0=0.55, T0=38.0, plant=PHYS, on_step=None):
         vals = dict(soc=d['soc'].item(), Tb=d['Tb'].item(), n=n, P_eng=P, fuel=d['fuel'].item(),
                     age=d['age_Ah'].item(), I=d['I'].item(), V=d['V'].item(), R=d['R'].item(),
                     P_rec=d['P_rec'].item(), curtail=d['curtail'].item(), unmet=d['unmet'].item(),
-                    interv=abs(P - P_cmd) > 200.0 or abs(n - n_cmd) > 10.0,
+                    interv=abs(P - P_cmd) > 200.0,
                     P_pump=d['P_pump'].item(), r=r)
         for kk, vv in vals.items():
             tr[kk][k] = vv
@@ -151,13 +151,13 @@ def tune_classic():
     """Luoi tham so cho Rule va A-ECMS tren chu trinh validation (giong cach chon gamma cho RL)."""
     val = make_cycle(*VAL)
     best = {}
-    for tau_f in [4.0, 8.0, 15.0, 30.0]:
-        for k in [1e5, 2e5, 4e5, 8e5]:
+    for tau_f in [1.0, 2.0, 4.0, 8.0]:
+        for k in [4e5, 8e5, 1.6e6, 3.2e6]:
             m = metrics(simulate(A.RulePolicy(tau_f, k), val))
             if 'rule' not in best or m['return'] > best['rule'][1]:
                 best['rule'] = ({'tau_f': tau_f, 'k_soc': k}, m['return'], m['fuel_eq_Lh'])
-    for s0 in [0.6, 0.8, 1.0, 1.2, 1.5]:
-        for kp in [0.0, 10.0, 30.0, 60.0]:
+    for s0 in [0.9, 1.1, 1.2, 1.3, 1.5]:
+        for kp in [30.0, 60.0, 120.0, 240.0]:
             m = metrics(simulate(A.ECMSPolicy(s0, kp), val))
             if 'ecms' not in best or m['return'] > best['ecms'][1]:
                 best['ecms'] = ({'s0': s0, 'kp': kp}, m['return'], m['fuel_eq_Lh'])

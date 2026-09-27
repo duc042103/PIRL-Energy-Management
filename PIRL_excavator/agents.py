@@ -261,7 +261,7 @@ class SACAgent(_RLBase):
         q = torch.minimum(self.q1(torch.cat([x, an], 1)), self.q2(torch.cat([x, an], 1)))
         loss_pi = (alpha * lp - q).mean()
         self.opt_pi.zero_grad(); loss_pi.backward(); self.opt_pi.step()
-        loss_al = -(self.log_alpha * (lp.detach() + 2.0)).mean()      # target entropy = -dim(A)
+        loss_al = -(self.log_alpha * (lp.detach() - 2.0)).mean()      # target entropy = -dim(A) = -2
         self.opt_al.zero_grad(); loss_al.backward(); self.opt_al.step()
         soft_update(self.q1, self.q1_t, self.tau)
         soft_update(self.q2, self.q2_t, self.tau)

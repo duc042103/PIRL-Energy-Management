@@ -72,7 +72,8 @@ def score(meta):
 
 
 def select():
-    """Chon gamma cho moi thuat toan theo seed 0 tren chu trinh validation (khong nhin test)."""
+    """Chon gamma cho moi thuat toan theo seed 0 tren chu trinh validation (khong nhin test).
+    Seed 0 chi dung de tinh chinh; ket qua bao cao dung seed 1-3."""
     R = runs()
     best = {}
     for tag, m in R.items():
@@ -84,7 +85,7 @@ def select():
     json.dump({a: g for a, (g, _) in best.items()}, open(os.path.join(RES_DIR, 'gamma.json'), 'w'))
     sel = {}
     for a, (g, _) in best.items():
-        tags = sorted(t for t, m in R.items() if m['algo'] == a and m['gamma'] == g)
+        tags = sorted(t for t, m in R.items() if m['algo'] == a and m['gamma'] == g and m['seed'] != 0)
         sel[NAMES[a]] = tags
     for a in ('pirl_nofeat', 'pirl_noconstr', 'pirl_nophyscritic'):
         tags = sorted(t for t, m in R.items() if m['algo'] == a)
