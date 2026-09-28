@@ -1,3 +1,8 @@
+> **New:** Physics-Informed RL (PIRL) experiments — HEV and hybrid excavator (parallel and
+> power-split) — live in [`PIRL/`](PIRL), [`PIRL_excavator/`](PIRL_excavator) and
+> [`PIRL_excavator_ps/`](PIRL_excavator_ps). See **[`PIRL_README.md`](PIRL_README.md)** for a
+> step-by-step guide to running them.
+
 # Deep reinforcement learning based energy management strategy for hybrid electric vehicle
 **This research is cited from: [Lian R, Peng J, Wu Y, et al. Rule-interposing deep reinforcement learning based energy management strategy for power-split hybrid electric vehicle. Energy, 2020: 117297.](https://www.sciencedirect.com/science/article/pii/S0360544220304047)**
 
