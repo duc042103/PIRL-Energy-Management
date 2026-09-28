@@ -1,6 +1,6 @@
 # PIRL cho máy xúc hybrid có thu hồi năng lượng hạ cần
 
-Code: [`excavator_model.py`](excavator_model.py) (vật lý), [`duty_cycles.py`](duty_cycles.py) (tải), [`agents.py`](agents.py) (PIRL và các baseline), [`bench.py`](bench.py) (train, đánh giá), [`report.py`](report.py) (bảng, hình). Kết quả benchmark nằm trong [`BENCHMARK.md`](BENCHMARK.md).
+Code: [`excavator_model.py`](excavator_model.py) (vật lý), [`duty_cycles.py`](duty_cycles.py) (tải), [`agents.py`](agents.py) (PIRL và các baseline), [`bench.py`](bench.py) (train, đánh giá), [`report.py`](report.py) (bảng, hình). Kết quả benchmark và phân tích: [`BENCHMARK.md`](BENCHMARK.md).
 
 ## 1. Đối tượng: máy xúc hybrid song song 20 tấn
 

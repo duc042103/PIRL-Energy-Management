@@ -1,4 +1,3 @@
-runs/*.txt
 __pycache__/
-runs/
-results/
+runs/*.txt
+results/partial/

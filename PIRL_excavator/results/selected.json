@@ -1,0 +1,37 @@
+{
+ "DDPG": [
+  "ddpg_g0.99_s1",
+  "ddpg_g0.99_s2",
+  "ddpg_g0.99_s3"
+ ],
+ "PIRL": [
+  "pirl_g0.99_s1",
+  "pirl_g0.99_s2",
+  "pirl_g0.99_s3"
+ ],
+ "SAC": [
+  "sac_g0.99_s1",
+  "sac_g0.99_s2",
+  "sac_g0.99_s3"
+ ],
+ "TD3": [
+  "td3_g0.99_s1",
+  "td3_g0.99_s2",
+  "td3_g0.99_s3"
+ ],
+ "PIRL w/o feature": [
+  "pirl_nofeat_g0.99_s1",
+  "pirl_nofeat_g0.99_s2",
+  "pirl_nofeat_g0.99_s3"
+ ],
+ "PIRL w/o constraint": [
+  "pirl_noconstr_g0.99_s1",
+  "pirl_noconstr_g0.99_s2",
+  "pirl_noconstr_g0.99_s3"
+ ],
+ "PIRL w/o phys-critic": [
+  "pirl_nophyscritic_g0.99_s1",
+  "pirl_nophyscritic_g0.99_s2",
+  "pirl_nophyscritic_g0.99_s3"
+ ]
+}

@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from bench import RUN_DIR, RES_DIR                     # noqa: E402
-from duty_cycles import TEST_JOBS                      # noqa: E402
+from duty_cycles import TEST_JOBS, make_cycle, DT      # noqa: E402
+from excavator_model import RHO_DIESEL                 # noqa: E402
 
 NAMES = {'pirl': 'PIRL', 'ddpg': 'DDPG', 'td3': 'TD3', 'sac': 'SAC',
          'pirl_nofeat': 'PIRL w/o feature', 'pirl_noconstr': 'PIRL w/o constraint',
@@ -35,15 +36,16 @@ plt.rcParams.update({'font.size': 9, 'axes.edgecolor': MUTED, 'axes.labelcolor':
 
 # (key, label, lower_is_better, fmt)
 METRICS = [
+    ('sfc_work', 'Nhiên liệu quy đổi SOC / công thủy lực thực hiện (g/kWh)', True, '{:.1f}'),
+    ('gap_dp', 'Chênh lệch so với DP, tính theo g/kWh công (%)', True, '{:+.1f}'),
+    ('unmet_pct', 'Công việc không đáp ứng (% công thủy lực)', True, '{:.2f}'),
     ('fuel_eq_Lh', 'Nhiên liệu quy đổi SOC (L/h)', True, '{:.2f}'),
-    ('gap_dp', 'Chênh lệch so với DP (%)', True, '{:+.1f}'),
     ('fuel_eq_cons_Lh', 'Nhiên liệu, hệ số quy đổi bất lợi (L/h)', True, '{:.2f}'),
     ('cost_usd_h', 'Chi phí vận hành nhiên liệu + hao mòn pin ($/h)', True, '{:.2f}'),
     ('bsfc_gkWh', 'BSFC trung bình động cơ (g/kWh)', True, '{:.0f}'),
     ('n_mean', 'Tốc độ động cơ trung bình (rpm)', True, '{:.0f}'),
     ('rec_util_pct', 'Tỷ lệ tận dụng năng lượng hạ cần (%)', False, '{:.1f}'),
     ('curtail_kWh', 'Năng lượng hạ cần bị tiết lưu (kWh)', True, '{:.3f}'),
-    ('unmet_kWh', 'Công suất thủy lực không đáp ứng (kWh)', True, '{:.3f}'),
     ('soc_dev_end', '|SOC cuối − 0.55|', True, '{:.3f}'),
     ('soc_rms', 'RMS(SOC − 0.55)', True, '{:.3f}'),
     ('T_max', 'Nhiệt độ pin lớn nhất (°C)', True, '{:.1f}'),
@@ -99,10 +101,18 @@ def load():
     res = json.load(open(os.path.join(RES_DIR, 'results.json')))
     for plant in res.values():
         for job, R in plant.items():
-            dp = R['DP'][0]['fuel_eq_Lh']
+            cyc = make_cycle(job, seed=999 if job == 'train_mixed' else 0)
+            demand = cyc['P_hyd'][:-1].sum() * DT / 3.6e6                 # kWh thuy luc yeu cau
+            hours = (len(cyc['n']) - 1) * DT / 3600
             for rr in R.values():
                 for m in rr:
-                    m['gap_dp'] = 100 * (m['fuel_eq_Lh'] / dp - 1)
+                    done = demand - m['unmet_kWh']
+                    m['unmet_pct'] = 100 * m['unmet_kWh'] / demand
+                    m['sfc_work'] = m['fuel_eq_Lh'] * RHO_DIESEL * hours / done   # g diesel / kWh cong thuc hien
+            dp = R['DP'][0]['sfc_work']
+            for rr in R.values():
+                for m in rr:
+                    m['gap_dp'] = 100 * (m['sfc_work'] / dp - 1)
     return res
 
 
@@ -177,8 +187,8 @@ def fig_gap(res, path):
                w * 0.9, color=COLORS[m], label=m)
     ax.axhline(0, color=INK, lw=0.8)
     ax.set_xticks(x, [j.replace('_', '\n') for j in TEST_JOBS])
-    ax.set_ylabel('Nhiên liệu vượt DP (%)')
-    ax.set_title('Khoảng cách tới tối ưu toàn cục DP trên 10 công việc test (thấp hơn = tốt hơn)', loc='left', color=INK)
+    ax.set_ylabel('g/kWh công vượt DP (%)')
+    ax.set_title('Nhiên liệu trên mỗi kWh công thủy lực, so với DP (thấp hơn = tốt hơn)', loc='left', color=INK)
     ax.legend(ncol=len(ms), loc='upper left')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
@@ -249,7 +259,8 @@ def main():
         'training': tt,
     }
     for plant in ('nominal', 'mismatch'):
-        for key, f, low in [('fuel_eq_Lh', '{:.2f}', True), ('cost_usd_h', '{:.2f}', True),
+        for key, f, low in [('sfc_work', '{:.1f}', True), ('unmet_pct', '{:.2f}', True),
+                            ('fuel_eq_Lh', '{:.2f}', True), ('cost_usd_h', '{:.2f}', True),
                             ('aging_Ah_h', '{:.1f}', True)]:
             t, w = per_job(res, plant, key, f, low)
             out[f'per_job_{key}_{plant}'] = t
