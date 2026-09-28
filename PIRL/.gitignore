@@ -1,0 +1,4 @@
+pirl_actor.pt
+__pycache__/
+runs/log*.txt
+runs/jobs*.txt

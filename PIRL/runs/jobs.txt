@@ -1,0 +1,10 @@
+--algo ddpg --episodes 100 --seed 0
+--algo ddpg --episodes 100 --seed 1
+--algo ddpg --episodes 100 --seed 2
+--algo ddpg --episodes 30 --seed 0
+--algo ddpg --episodes 30 --seed 1
+--algo ddpg --episodes 30 --seed 2
+--algo ddpg --episodes 30 --seed 0 --gamma 0.9
+--algo pirl --episodes 30 --seed 0
+--algo pirl --episodes 30 --seed 1
+--algo pirl --episodes 30 --seed 2

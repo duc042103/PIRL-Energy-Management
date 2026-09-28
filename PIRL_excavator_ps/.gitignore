@@ -1,0 +1,5 @@
+__pycache__/
+runs/*.txt
+runs/v1_saturated/
+runs/v2_fix_nocritic/
+results/partial/
