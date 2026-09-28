@@ -20,8 +20,9 @@ TEST_JOBS = ['heavy_dig', 'truck_load_180', 'trenching', 'grading', 'pipe_liftin
 
 
 class _Builder:
-    def __init__(self, rng):
+    def __init__(self, rng, seq_lowering=False):
         self.rng = rng
+        self.seq = seq_lowering
         self.segs = []          # (duration_s, n, P_hyd_kW, P_boom_kW, w_hm)
 
     def add(self, dur, n, P, Pb=0.0, w=0.0, jitter=0.12):
@@ -29,7 +30,14 @@ class _Builder:
         dur = max(DT, dur * (1 + r.uniform(-0.2, 0.2)))
         P = max(0.0, P * (1 + r.uniform(-jitter, jitter)))
         Pb = max(0.0, Pb * (1 + r.uniform(-jitter, jitter)))
-        self.segs.append((dur, n, P, Pb, w))
+        if self.seq and Pb > 0:
+            # may power-split: khi ha can van chinh DONG -> tach thanh 2 pha noi tiep:
+            # (a) quay toa / thao tac khac (bom chay), (b) ha can (bom khong cap dau, chi thu hoi)
+            if P > 0:
+                self.segs.append((0.6 * dur, n, P, 0.0, 0.0))
+            self.segs.append((0.8 * dur, n, 0.0, Pb, w))
+        else:
+            self.segs.append((dur, n, P, Pb, w))
 
     def dig_cycle(self, n, dig=85, lift=65, dump=25, back=30, boom_rec=28, swing=4.0, dig_t=4.5,
                   down_t=4.0, w=150.0):
@@ -58,13 +66,17 @@ class _Builder:
             y[i, 1:3] = y[i - 1, 1:3] + alpha * (a[i, 1:3] - y[i - 1, 1:3])
         y[:, 1] *= 1 + 0.05 * self.rng.standard_normal(len(y))
         y[:, 1:3] = np.clip(y[:, 1:3], 0, None)
+        if self.seq:                       # pha ha can tach biet: van chinh dong / thu hoi chi khi ha can
+            low = a[:, 2] > 0
+            y[low, 1] = 0.0
+            y[~low, 2] = 0.0
         return {'n': y[:, 0], 'P_hyd': y[:, 1] * 1e3, 'P_boom': y[:, 2] * 1e3,
                 'w_hm': np.where(y[:, 2] > 0.5, y[:, 3], 0.0)}
 
 
-def make_cycle(job, seed=0, total_s=600.0):
+def make_cycle(job, seed=0, total_s=600.0, seq_lowering=False):
     rng = np.random.default_rng(zlib.crc32(job.encode()) % 10_000 + 7919 * seed)
-    b = _Builder(rng)
+    b = _Builder(rng, seq_lowering)
     while sum(s[0] for s in b.segs) < total_s + 30:
         if job == 'heavy_dig':                 # dat cung, che do H 2000 rpm
             b.dig_cycle(2000, dig=105, lift=80, back=32, boom_rec=32)
