@@ -1,0 +1,32 @@
+{
+ "PIRL": [
+  "pirl_g0.99_s1",
+  "pirl_g0.99_s2",
+  "pirl_g0.99_s3"
+ ],
+ "PIRL-P": [
+  "pirl_g0.99_s1",
+  "pirl_g0.99_s2",
+  "pirl_g0.99_s3"
+ ],
+ "PIRL-P+": [
+  "pirlp_g0.99_s1",
+  "pirlp_g0.99_s2",
+  "pirlp_g0.99_s3"
+ ],
+ "SAC": [
+  "sac_g0.99_s1",
+  "sac_g0.99_s2",
+  "sac_g0.99_s3"
+ ],
+ "TD3": [
+  "td3_g0.99_s1",
+  "td3_g0.99_s2",
+  "td3_g0.99_s3"
+ ],
+ "DDPG": [
+  "ddpg_g0.99_s1",
+  "ddpg_g0.99_s2",
+  "ddpg_g0.99_s3"
+ ]
+}

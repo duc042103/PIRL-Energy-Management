@@ -22,9 +22,9 @@ from ps_model import RHO_DIESEL                        # noqa: E402
 NAMES = {'pirl': 'PIRL', 'ddpg': 'DDPG', 'td3': 'TD3', 'sac': 'SAC',
          'pirl_nofeat': 'PIRL w/o feature', 'pirl_noconstr': 'PIRL w/o constraint',
          'pirl_nophyscritic': 'PIRL w/o phys-critic'}
-MAIN = ['DP', 'PIRL', 'SAC', 'TD3', 'DDPG', 'A-ECMS', 'Rule']
+MAIN = ['DP', 'PIRL-P', 'PIRL-P+', 'PIRL', 'SAC', 'TD3', 'DDPG', 'A-ECMS', 'Rule']
 ABL = ['PIRL', 'PIRL w/o feature', 'PIRL w/o constraint', 'PIRL w/o phys-critic']
-COLORS = {'DP': '#52514e', 'PIRL': '#2a78d6', 'SAC': '#eb6834', 'TD3': '#1baf7a', 'DDPG': '#eda100',
+COLORS = {'DP': '#52514e', 'PIRL-P': '#2a78d6', 'PIRL-P+': '#4a3aa7', 'PIRL': '#8fb8ea', 'SAC': '#eb6834', 'TD3': '#1baf7a', 'DDPG': '#eda100',
           'A-ECMS': '#4a3aa7', 'Rule': '#b5b3ab', 'PIRL w/o feature': '#e87ba4',
           'PIRL w/o constraint': '#008300', 'PIRL w/o phys-critic': '#e34948'}
 INK, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
@@ -135,7 +135,7 @@ def summary(res, plant, methods):
 
 def per_job(res, plant, key, f, low=True, methods=MAIN):
     methods = [m for m in methods if m in res[plant][TEST_JOBS[0]]]
-    rivals = [m for m in methods if m not in ('DP', 'PIRL')]
+    rivals = [m for m in methods if m not in ('DP', 'PIRL-P')]
     L = ['| Công việc | ' + ' | '.join(methods) + ' | PIRL thắng |', '|' + '---|' * (len(methods) + 2)]
     wins = {m: 0 for m in rivals}
     for j in ['train_mixed'] + TEST_JOBS:
@@ -143,7 +143,7 @@ def per_job(res, plant, key, f, low=True, methods=MAIN):
         v = {m: agg(R, m, key) for m in methods}
         cand = [m for m in methods if m != 'DP']
         best = (min if low else max)(cand, key=lambda m: v[m][0])
-        beat = [m for m in rivals if (v['PIRL'][0] < v[m][0] if low else v['PIRL'][0] > v[m][0])]
+        beat = [m for m in rivals if (v['PIRL-P'][0] < v[m][0] if low else v['PIRL-P'][0] > v[m][0])]
         if j != 'train_mixed':
             for m in beat:
                 wins[m] += 1
@@ -154,7 +154,7 @@ def per_job(res, plant, key, f, low=True, methods=MAIN):
         name = j + (' *(validation)*' if j == 'train_mixed' else '')
         L.append(f'| {name} | ' + ' | '.join(cells) + f' | {len(beat)}/{len(rivals)} |')
     L.append('| **Số công việc PIRL thắng (/10)** | ' + ' | '.join(
-        '–' if m in ('DP', 'PIRL') else f'**{wins[m]}**' for m in methods) + ' | |')
+        '–' if m in ('DP', 'PIRL-P') else f'**{wins[m]}**' for m in methods) + ' | |')
     return '\n'.join(L), wins
 
 
@@ -196,7 +196,7 @@ def fig_gap(res, path):
 def fig_learning(groups, path):
     fig, axs = plt.subplots(1, 2, figsize=(11, 3.4))
     for name, ms in groups.items():
-        if name not in ('PIRL', 'SAC', 'TD3', 'DDPG'):
+        if name not in ('PIRL', 'PIRL-P+', 'SAC', 'TD3', 'DDPG'):
             continue
         c = np.array([[e['val_cost'] for e in m['log']] for m in ms])
         iv = np.array([[e['train_interv'] for e in m['log']] for m in ms])
@@ -213,7 +213,7 @@ def fig_learning(groups, path):
 
 def fig_traces(path, job='trenching'):
     tr = np.load(os.path.join(RES_DIR, 'traces.npz'))
-    ms = [m for m in ['DP', 'PIRL', 'SAC', 'A-ECMS'] if f'nominal|{job}|{m}' in tr]
+    ms = [m for m in ['DP', 'PIRL-P', 'TD3', 'A-ECMS'] if f'nominal|{job}|{m}' in tr]
     x0 = tr[f'nominal|{job}|{ms[0]}']
     t = np.arange(x0.shape[1]) * 0.5
     sl = slice(0, 240)
