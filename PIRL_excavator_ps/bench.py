@@ -36,6 +36,7 @@ def make_cycle(job, seed=0):
 
 ALGOS = {
     'pirl': lambda g: A.PIRLAgent(g),
+    'pirlp': lambda g: A.PIRLAgent(g, planner_target=True),
     'pirl_nofeat': lambda g: A.PIRLAgent(g, feat=False),
     'pirl_noconstr': lambda g: A.PIRLAgent(g, constr=False),
     'pirl_nophyscritic': lambda g: A.PIRLAgent(g, phys_critic=False),
@@ -145,17 +146,26 @@ def train(algo, gamma, seed, episodes=EPISODES):
               flush=True)
     os.makedirs(RUN_DIR, exist_ok=True)
     tag = f'{algo}_g{gamma}_s{seed}'
-    torch.save(agent.__dict__.get('actor', getattr(agent, 'pi', None)).state_dict(),
-               os.path.join(RUN_DIR, tag + '.pt'))
+    ckpt = {'actor': agent.__dict__.get('actor', getattr(agent, 'pi', None)).state_dict()}
+    if hasattr(agent, 'critic') and algo.startswith('pirl'):
+        ckpt['critic'] = agent.critic.state_dict()
+    torch.save(ckpt, os.path.join(RUN_DIR, tag + '.pt'))
     json.dump({'algo': algo, 'gamma': gamma, 'seed': seed, 'train_time_s': time.time() - t0, 'log': log},
               open(os.path.join(RUN_DIR, tag + '.json'), 'w'), indent=1)
 
 
-def load_policy(tag):
+def load_policy(tag, plan=False):
     meta = json.load(open(os.path.join(RUN_DIR, tag + '.json')))
     agent = ALGOS[meta['algo']](meta['gamma'])
     net = agent.actor if hasattr(agent, 'actor') else agent.pi
-    net.load_state_dict(torch.load(os.path.join(RUN_DIR, tag + '.pt')))
+    ck = torch.load(os.path.join(RUN_DIR, tag + '.pt'))
+    if 'actor' in ck:
+        net.load_state_dict(ck['actor'])
+        if 'critic' in ck:
+            agent.critic.load_state_dict(ck['critic'])
+    else:
+        net.load_state_dict(ck)
+    agent.plan = plan
     return (lambda s: agent.act(s)), meta
 
 
@@ -191,7 +201,7 @@ def evaluate_one(plant_name, job):
             'A-ECMS': [A.ECMSPolicy(**cp['ecms'], phys=plant)],
             'Rule': [A.RulePolicy(**cp['rule'], phys=plant)]}
     for name, ts in sel.items():
-        pols[name] = [load_policy(t)[0] for t in ts]
+        pols[name] = [load_policy(t, plan=name.startswith('PIRL-P'))[0] for t in ts]
     R, traces = {}, {}
     for name, ps in pols.items():
         R[name] = []

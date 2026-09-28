@@ -113,9 +113,12 @@ class PIRLActor(nn.Module):
 class PIRLAgent(_RLBase):
     """feat / constr / phys_critic = True la PIRL day du; tat tung cai de lam ablation."""
 
-    def __init__(self, gamma=0.95, feat=True, constr=True, phys_critic=True, lr=1e-3, tau=0.005):
+    def __init__(self, gamma=0.95, feat=True, constr=True, phys_critic=True, lr=1e-3, tau=0.005,
+                 planner_target=False):
         super().__init__()
         self.gamma, self.tau = gamma, tau
+        self.planner_target = planner_target        # PIRL-P+: target critic = max_a tren luoi ung vien
+        self.plan = False                           # PIRL-P: chon action bang argmax Q khi chay
         self.logit_reg = 1e-2
         self.feat, self.constr, self.phys_critic = feat, constr, phys_critic
         self.actor = PIRLActor(feat, constr)
@@ -130,9 +133,42 @@ class PIRLAgent(_RLBase):
 
     def act(self, s, explore=False, frac=1.0):
         with torch.no_grad():
+            st = self._st(s)
+            if self.plan and not explore:
+                return self.plan_act(st)
             noise = max(0.05, 1.0 * (1 - frac)) if explore else 0.0
-            n, P = self.actor(self._st(s), noise)
+            n, P = self.actor(st, noise)
             return n.item(), P.item()
+
+    # ------------------------------------------------------------------ bo chon action (planner)
+    def candidates(self, s, gp, ge):
+        """Luoi gp toc do bom x ge toc do ICE, tat ca nam trong mien kha thi A(s). Tra ve [B, gp*ge]."""
+        B = s.shape[0]
+        p_lo, p_hi = PHYS.pump_window(s, pump_req=True)
+        up = torch.linspace(0, 1, gp, dtype=s.dtype)
+        ue = torch.linspace(0, 1, ge, dtype=s.dtype)
+        n_p = p_lo[:, None] + up[None] * (p_hi - p_lo)[:, None]                  # B x gp
+        sp = s[:, None, :].expand(B, gp, S_DIM).reshape(-1, S_DIM)
+        e_lo, e_hi = PHYS.engine_bounds(sp, n_p.reshape(-1))
+        n_e = e_lo[:, None] + ue[None] * (e_hi - e_lo)[:, None]                  # B*gp x ge
+        return n_p.reshape(-1, 1).expand(-1, ge).reshape(B, gp * ge), n_e.reshape(B, gp * ge)
+
+    def q_grid(self, critic, s, n_p, n_e, exo):
+        B, K = n_p.shape
+        sK = s[:, None, :].expand(B, K, S_DIM).reshape(-1, S_DIM)
+        eK = exo[:, None, :].expand(B, K, exo.shape[1]).reshape(-1, exo.shape[1])
+        return self.q_phys(critic, sK, n_p.reshape(-1), n_e.reshape(-1), eK).reshape(B, K)
+
+    def plan_act(self, s, gp=9, ge=9):
+        """a* = argmax_a [r_phys(s,a) + gamma V(f_phys(s,a))] tren {actor} U luoi 9x9.
+        Tai buoc sau chua biet -> dung tai hien tai lam uoc luong."""
+        n_p, n_e = self.candidates(s, gp, ge)
+        a_p, a_e = self.actor(s)
+        n_p = torch.cat([n_p, a_p[:, None]], 1)
+        n_e = torch.cat([n_e, a_e[:, None]], 1)
+        q = self.q_grid(self.critic, s, n_p, n_e, s[:, 4:])
+        i = q[0].argmax()
+        return n_p[0, i].item(), n_e[0, i].item()
 
     def q_phys(self, critic, s, n, P, exo):
         """Q = r_phys(s,a) + gamma * V_nn(f_phys(s,a)) - vat ly nam trong critic."""
@@ -151,7 +187,14 @@ class PIRLAgent(_RLBase):
         exo = s2[:, 4:]
         if self.phys_critic:
             with torch.no_grad():
-                y = self.q_phys(self.critic_t, s, *self.actor_t(s), exo)
+                if self.planner_target:        # PIRL-P+: y = max_a [r + gamma V'(s')], a in {actor'} U luoi 5x7
+                    n_p, n_e = self.candidates(s, 5, 7)
+                    a_p, a_e = self.actor_t(s)
+                    n_p = torch.cat([n_p, a_p[:, None]], 1)
+                    n_e = torch.cat([n_e, a_e[:, None]], 1)
+                    y = self.q_grid(self.critic_t, s, n_p, n_e, exo).max(1).values
+                else:
+                    y = self.q_phys(self.critic_t, s, *self.actor_t(s), exo)
             loss_c = F.mse_loss(self.critic(self._x(s))[:, 0], y)
         else:
             with torch.no_grad():
