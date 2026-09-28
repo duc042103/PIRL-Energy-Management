@@ -96,6 +96,7 @@ class PIRLActor(nn.Module):
 
     def forward(self, s, noise=0.0):
         logit = self.net(phys_feat(s) if self.feat else raw_feat(s))
+        self.last_logit = logit
         if noise > 0:
             logit = logit + noise * torch.randn_like(logit)
         u = torch.sigmoid(logit)
@@ -115,6 +116,7 @@ class PIRLAgent(_RLBase):
     def __init__(self, gamma=0.95, feat=True, constr=True, phys_critic=True, lr=1e-3, tau=0.005):
         super().__init__()
         self.gamma, self.tau = gamma, tau
+        self.logit_reg = 1e-2
         self.feat, self.constr, self.phys_critic = feat, constr, phys_critic
         self.actor = PIRLActor(feat, constr)
         nf = N_PHYS if feat else N_RAW
@@ -158,7 +160,13 @@ class PIRLAgent(_RLBase):
         self.opt_c.zero_grad(); loss_c.backward(); self.opt_c.step()
         n, P = self.actor(s)
         q = self.q_phys(self.critic, s, n, P, exo) if self.phys_critic else self.q_nn(self.critic, s, n, P)
-        self.opt_a.zero_grad(); (-q.mean()).backward(); self.opt_a.step()
+        # chong bao hoa actor: (1) chuan hoa theo do lon Q, (2) phat nhe bien do logit (giu sigmoid
+        # trong vung con gradient), (3) cat chuan gradient
+        q_scale = q.detach().abs().mean().clamp(min=1.0)
+        loss_a = -(q / q_scale).mean() + self.logit_reg * (self.actor.last_logit ** 2).mean()
+        self.opt_a.zero_grad(); loss_a.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 1.0)
+        self.opt_a.step()
         soft_update(self.actor, self.actor_t, self.tau)
         soft_update(self.critic, self.critic_t, self.tau)
 
