@@ -25,7 +25,9 @@ This idea is applied to three plants of increasing complexity, each a self-conta
 Each folder's own `README.md` / `BENCHMARK.md` (in Vietnamese) has the full model write-up, results
 tables and figures. **See [`PIRL_README.md`](PIRL_README.md) for a step-by-step guide to running
 every experiment**, including exact CLI commands, expected run times, and where pre-computed
-results already live in this repo.
+results already live in this repo. Setting up on Windows from scratch (installing Python/Git,
+cloning the repo, creating a virtual environment)? See
+**[`HUONG_DAN_CHAY_TREN_WINDOWS.md`](HUONG_DAN_CHAY_TREN_WINDOWS.md)** (in Vietnamese).
 
 ## Quick start
 
@@ -47,6 +49,7 @@ PIRL_excavator/                  Parallel hybrid excavator plant + full benchmar
 PIRL_excavator_ps/                Power-split hybrid excavator plant + full benchmark suite
 Data_Standard Driving Cycles/    Standard drive-cycle data (speed vs. time) used by PIRL/
 PIRL_README.md                   Step-by-step run guide for all three experiments
+HUONG_DAN_CHAY_TREN_WINDOWS.md   Windows setup guide (Vietnamese): install, clone, run
 ```
 
 ## Origins / acknowledgment
