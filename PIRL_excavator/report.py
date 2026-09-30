@@ -36,27 +36,27 @@ plt.rcParams.update({'font.size': 9, 'axes.edgecolor': MUTED, 'axes.labelcolor':
 
 # (key, label, lower_is_better, fmt)
 METRICS = [
-    ('sfc_work', 'Nhiên liệu quy đổi SOC / công thủy lực thực hiện (g/kWh)', True, '{:.1f}'),
-    ('gap_dp', 'Chênh lệch so với DP, tính theo g/kWh công (%)', True, '{:+.1f}'),
-    ('unmet_pct', 'Công việc không đáp ứng (% công thủy lực)', True, '{:.2f}'),
-    ('fuel_eq_Lh', 'Nhiên liệu quy đổi SOC (L/h)', True, '{:.2f}'),
-    ('fuel_eq_cons_Lh', 'Nhiên liệu, hệ số quy đổi bất lợi (L/h)', True, '{:.2f}'),
-    ('cost_usd_h', 'Chi phí vận hành nhiên liệu + hao mòn pin ($/h)', True, '{:.2f}'),
-    ('bsfc_gkWh', 'BSFC trung bình động cơ (g/kWh)', True, '{:.0f}'),
-    ('n_mean', 'Tốc độ động cơ trung bình (rpm)', True, '{:.0f}'),
-    ('rec_util_pct', 'Tỷ lệ tận dụng năng lượng hạ cần (%)', False, '{:.1f}'),
-    ('curtail_kWh', 'Năng lượng hạ cần bị tiết lưu (kWh)', True, '{:.3f}'),
-    ('soc_dev_end', '|SOC cuối − 0.55|', True, '{:.3f}'),
+    ('sfc_work', 'SOC-corrected fuel per delivered hydraulic work (g/kWh)', True, '{:.1f}'),
+    ('gap_dp', 'Gap to DP in g/kWh of work (%)', True, '{:+.1f}'),
+    ('unmet_pct', 'Unmet work (% of hydraulic work)', True, '{:.2f}'),
+    ('fuel_eq_Lh', 'SOC-corrected fuel (L/h)', True, '{:.2f}'),
+    ('fuel_eq_cons_Lh', 'Fuel, conservative equivalence factor (L/h)', True, '{:.2f}'),
+    ('cost_usd_h', 'Operating cost, fuel + battery wear ($/h)', True, '{:.2f}'),
+    ('bsfc_gkWh', 'Mean engine BSFC (g/kWh)', True, '{:.0f}'),
+    ('n_mean', 'Mean engine speed (rpm)', True, '{:.0f}'),
+    ('rec_util_pct', 'Boom-lowering energy utilization (%)', False, '{:.1f}'),
+    ('curtail_kWh', 'Throttled boom-lowering energy (kWh)', True, '{:.3f}'),
+    ('soc_dev_end', '|final SOC − 0.55|', True, '{:.3f}'),
     ('soc_rms', 'RMS(SOC − 0.55)', True, '{:.3f}'),
-    ('T_max', 'Nhiệt độ pin lớn nhất (°C)', True, '{:.1f}'),
-    ('derate_pct', 'Thời gian pin bị giảm định mức, T > 40 °C (%)', True, '{:.1f}'),
-    ('throughput_Ah_h', 'Lưu lượng Ah (Ah/h)', True, '{:.1f}'),
-    ('aging_Ah_h', 'Hao mòn pin, Ah hiệu dụng (Ah/h)', True, '{:.1f}'),
-    ('batt_life_h', 'Tuổi thọ pin ước tính (giờ máy)', False, '{:.0f}'),
-    ('ohmic_kJ', 'Tổn hao I²R trong pin (kJ)', True, '{:.0f}'),
-    ('I_rms', 'Dòng pin RMS (A)', True, '{:.1f}'),
-    ('I_peak', 'Dòng pin đỉnh (A)', True, '{:.1f}'),
-    ('interventions', 'Số bước action bị supervisor sửa', True, '{:.0f}'),
+    ('T_max', 'Max battery temperature (°C)', True, '{:.1f}'),
+    ('derate_pct', 'Battery derating time, T > 40 °C (%)', True, '{:.1f}'),
+    ('throughput_Ah_h', 'Ah throughput (Ah/h)', True, '{:.1f}'),
+    ('aging_Ah_h', 'Battery wear, effective Ah (Ah/h)', True, '{:.1f}'),
+    ('batt_life_h', 'Estimated battery life (machine hours)', False, '{:.0f}'),
+    ('ohmic_kJ', 'Battery I²R loss (kJ)', True, '{:.0f}'),
+    ('I_rms', 'Battery RMS current (A)', True, '{:.1f}'),
+    ('I_peak', 'Battery peak current (A)', True, '{:.1f}'),
+    ('interventions', 'Actions corrected by supervisor', True, '{:.0f}'),
 ]
 
 
@@ -123,7 +123,7 @@ def agg(R, m, k):
 
 def summary(res, plant, methods):
     methods = [m for m in methods if m in res[plant][TEST_JOBS[0]]]
-    L = ['| # | Chỉ số (TB 10 công việc test) | ' + ' | '.join(methods) + ' |', '|' + '---|' * (len(methods) + 2)]
+    L = ['| # | Metric (mean over 10 test jobs) | ' + ' | '.join(methods) + ' |', '|' + '---|' * (len(methods) + 2)]
     for i, (k, lab, low, f) in enumerate(METRICS, 1):
         v = {m: np.mean([agg(res[plant][j], m, k)[0] for j in TEST_JOBS]) for m in methods}
         cand = [m for m in methods if m != 'DP']
@@ -136,7 +136,7 @@ def summary(res, plant, methods):
 def per_job(res, plant, key, f, low=True, methods=MAIN):
     methods = [m for m in methods if m in res[plant][TEST_JOBS[0]]]
     rivals = [m for m in methods if m not in ('DP', 'PIRL')]
-    L = ['| Công việc | ' + ' | '.join(methods) + ' | PIRL thắng |', '|' + '---|' * (len(methods) + 2)]
+    L = ['| Job | ' + ' | '.join(methods) + ' | PIRL wins |', '|' + '---|' * (len(methods) + 2)]
     wins = {m: 0 for m in rivals}
     for j in ['train_mixed'] + TEST_JOBS:
         R = res[plant][j]
@@ -153,7 +153,7 @@ def per_job(res, plant, key, f, low=True, methods=MAIN):
             cells.append(f'**{c}**' if m == best else c)
         name = j + (' *(validation)*' if j == 'train_mixed' else '')
         L.append(f'| {name} | ' + ' | '.join(cells) + f' | {len(beat)}/{len(rivals)} |')
-    L.append('| **Số công việc PIRL thắng (/10)** | ' + ' | '.join(
+    L.append('| **Jobs won by PIRL (/10)** | ' + ' | '.join(
         '–' if m in ('DP', 'PIRL') else f'**{wins[m]}**' for m in methods) + ' | |')
     return '\n'.join(L), wins
 
@@ -163,8 +163,8 @@ def training_table(R):
     sel = json.load(open(os.path.join(RES_DIR, 'selected.json')))
     for name, tags in sel.items():
         groups[name] = [R[t] for t in tags]
-    L = ['| Thuật toán | γ | Seed | Thời gian train (phút) | Vi phạm ràng buộc khi train | T pin max khi train (°C) '
-         '| Episode hội tụ (≤ 2% chi phí cuối) |', '|---|---|---|---|---|---|---|']
+    L = ['| Algorithm | γ | Seed | Training time (min) | Constraint violations during training | Max battery T during training (°C) '
+         '| Convergence episode (≤ 2% of final cost) |', '|---|---|---|---|---|---|---|']
     for name, ms in groups.items():
         conv = []
         for m in ms:
@@ -187,8 +187,8 @@ def fig_gap(res, path):
                w * 0.9, color=COLORS[m], label=m)
     ax.axhline(0, color=INK, lw=0.8)
     ax.set_xticks(x, [j.replace('_', '\n') for j in TEST_JOBS])
-    ax.set_ylabel('g/kWh công vượt DP (%)')
-    ax.set_title('Nhiên liệu trên mỗi kWh công thủy lực, so với DP (thấp hơn = tốt hơn)', loc='left', color=INK)
+    ax.set_ylabel('g/kWh of work above DP (%)')
+    ax.set_title('Fuel per kWh of hydraulic work relative to DP (lower is better)', loc='left', color=INK)
     ax.legend(ncol=len(ms), loc='upper left')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
@@ -204,10 +204,10 @@ def fig_learning(groups, path):
         axs[0].plot(ep, c.mean(0), color=COLORS[name], lw=2, label=name)
         axs[0].fill_between(ep, c.min(0), c.max(0), color=COLORS[name], alpha=0.15, lw=0)
         axs[1].plot(ep, iv.mean(0), color=COLORS[name], lw=2, label=name)
-    axs[0].set_title('Chi phí vận hành trên chu trình validation', loc='left', color=INK)
+    axs[0].set_title('Operating cost on the validation cycle', loc='left', color=INK)
     axs[0].set_xlabel('Episode'); axs[0].set_ylabel('$/h'); axs[0].legend()
-    axs[1].set_title('Số bước action bị supervisor sửa khi train', loc='left', color=INK)
-    axs[1].set_xlabel('Episode'); axs[1].set_ylabel('bước / episode')
+    axs[1].set_title('Actions corrected by supervisor during training', loc='left', color=INK)
+    axs[1].set_xlabel('Episode'); axs[1].set_ylabel('steps / episode')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
@@ -217,7 +217,7 @@ def fig_traces(path, job='trenching'):
     t = np.arange(tr[f'nominal|{job}|{ms[0]}'].shape[1]) * 0.5
     sl = slice(0, 240)            # 120 s dau
     fig, axs = plt.subplots(4, 1, figsize=(11, 8), sharex=True)
-    labs = ['Tốc độ động cơ (rpm)', 'SOC', 'Nhiệt độ pin (°C)', 'Hạ cần bị tiết lưu (kW)']
+    labs = ['Engine speed (rpm)', 'SOC', 'Battery temperature (°C)', 'Throttled boom lowering (kW)']
     for m in ms:
         x = tr[f'nominal|{job}|{m}']
         axs[0].plot(t[sl], x[5][sl], color=COLORS[m], lw=1.6, label=m)
@@ -226,15 +226,15 @@ def fig_traces(path, job='trenching'):
         axs[3].plot(t[sl], x[4][sl] / 1e3, color=COLORS[m], lw=1.6)
     for ax, l in zip(axs, labs):
         ax.set_ylabel(l, fontsize=8)
-    axs[0].set_title(f'{job}: 120 s đầu (tốc độ, tiết lưu) và toàn chu trình (SOC, nhiệt độ)', loc='left', color=INK)
-    axs[0].legend(ncol=len(ms), loc='upper right'); axs[-1].set_xlabel('Thời gian (s)')
+    axs[0].set_title(f'{job}: first 120 s (speed, throttling) and full cycle (SOC, temperature)', loc='left', color=INK)
+    axs[0].legend(ncol=len(ms), loc='upper right'); axs[-1].set_xlabel('Time (s)')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
 def fig_battery(res, path):
     ms = [m for m in MAIN if m in res['nominal'][TEST_JOBS[0]]]
-    keys = [('aging_Ah_h', 'Hao mòn pin (Ah hiệu dụng/h)'), ('ohmic_kJ', 'Tổn hao I²R (kJ)'),
-            ('T_max', 'T pin max (°C)'), ('rec_util_pct', 'Tận dụng hạ cần (%)')]
+    keys = [('aging_Ah_h', 'Battery wear (effective Ah/h)'), ('ohmic_kJ', 'I²R loss (kJ)'),
+            ('T_max', 'Max battery T (°C)'), ('rec_util_pct', 'Boom-lowering utilization (%)')]
     fig, axs = plt.subplots(1, 4, figsize=(12, 3.1))
     for ax, (k, lab) in zip(axs, keys):
         v = [np.mean([agg(res['mismatch'][j], m, k)[0] for j in TEST_JOBS]) for m in ms]
@@ -243,7 +243,7 @@ def fig_battery(res, path):
         ax.set_title(lab, loc='left', color=INK); ax.grid(axis='x', visible=False)
         if k == 'T_max':
             ax.set_ylim(35, max(v) + 2)
-    fig.suptitle('Chỉ số pin, kịch bản mismatch (trời 45 °C, pin lão hoá), TB 10 công việc', x=0.01, ha='left', color=INK)
+    fig.suptitle('Battery metrics, mismatch plant (45 °C ambient, aged battery), mean over 10 jobs', x=0.01, ha='left', color=INK)
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 

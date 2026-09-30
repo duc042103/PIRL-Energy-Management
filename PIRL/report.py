@@ -34,20 +34,20 @@ SHORT = {c: c.replace('Standard_', '').replace('_2', '').replace('-2', '') for c
 
 # (key, label, unit, lower_is_better, fmt)
 METRICS = [
-    ('fuel_eq_L100', 'Nhiên liệu quy đổi SOC', 'L/100km', True, '{:.3f}'),
-    ('gap_dp', 'Chênh lệch so với DP', '%', True, '{:+.2f}'),
-    ('fuel_eq_cons_L100', 'Nhiên liệu quy đổi SOC (hệ số bất lợi)', 'L/100km', True, '{:.3f}'),
-    ('energy_kWh100', 'Tổng năng lượng (nhiên liệu + pin)', 'kWh/100km', True, '{:.2f}'),
-    ('eng_eff', 'Hiệu suất TB động cơ', '%', False, '{:.2f}'),
-    ('eng_starts', 'Số lần khởi động máy', '', True, '{:.1f}'),
-    ('soc_dev_end', '|SOC cuối − 0.6|', '', True, '{:.4f}'),
+    ('fuel_eq_L100', 'SOC-corrected fuel', 'L/100km', True, '{:.3f}'),
+    ('gap_dp', 'Gap to DP', '%', True, '{:+.2f}'),
+    ('fuel_eq_cons_L100', 'SOC-corrected fuel (conservative factor)', 'L/100km', True, '{:.3f}'),
+    ('energy_kWh100', 'Total energy (fuel + battery)', 'kWh/100km', True, '{:.2f}'),
+    ('eng_eff', 'Mean engine efficiency', '%', False, '{:.2f}'),
+    ('eng_starts', 'Engine starts', '', True, '{:.1f}'),
+    ('soc_dev_end', '|final SOC − 0.6|', '', True, '{:.4f}'),
     ('soc_rms', 'RMS(SOC − 0.6)', '', True, '{:.4f}'),
-    ('throughput_Ah', 'Lưu lượng Ah qua pin (lão hoá)', 'Ah', True, '{:.2f}'),
-    ('ohmic_loss_kJ', 'Tổn hao nhiệt I²R trong pin', 'kJ', True, '{:.1f}'),
-    ('I_rms', 'Dòng pin RMS', 'A', True, '{:.1f}'),
-    ('I_peak', 'Dòng pin đỉnh', 'A', True, '{:.1f}'),
-    ('interventions', 'Số bước action bị supervisor sửa (tổng)', '', True, '{:.1f}'),
-    ('interv_batt', '… trong đó vi phạm giới hạn pin/SOC', '', True, '{:.1f}'),
+    ('throughput_Ah', 'Battery Ah throughput (aging)', 'Ah', True, '{:.2f}'),
+    ('ohmic_loss_kJ', 'Battery I²R heat loss', 'kJ', True, '{:.1f}'),
+    ('I_rms', 'Battery RMS current', 'A', True, '{:.1f}'),
+    ('I_peak', 'Battery peak current', 'A', True, '{:.1f}'),
+    ('interventions', 'Actions corrected by supervisor (total)', '', True, '{:.1f}'),
+    ('interv_batt', '… of which battery/SOC limit violations', '', True, '{:.1f}'),
 ]
 
 
@@ -104,7 +104,7 @@ def per_cycle_table(res, plant, key, f, low=True):
     d30 = [m for m in sel if m.startswith('DDPG-30ep')][0]
     d100 = [m for m in sel if m.startswith('DDPG-100ep')][0]
     better = (lambda a, b: a < b) if low else (lambda a, b: a > b)
-    lines = ['| Chu trình | ' + ' | '.join(methods) + f' | {p30} vs {d30} | {p30} vs {d100} |',
+    lines = ['| Cycle | ' + ' | '.join(methods) + f' | {p30} vs {d30} | {p30} vs {d100} |',
              '|' + '---|' * (len(methods) + 3)]
     wins = [0, 0]
     for cyc in [TRAIN_CYCLE] + TEST_CYCLES:
@@ -122,7 +122,7 @@ def per_cycle_table(res, plant, key, f, low=True):
         name = SHORT[cyc] + (' *(train)*' if cyc == TRAIN_CYCLE else '')
         lines.append(f'| {name} | ' + ' | '.join(cells) + ' | ' +
                      ' | '.join('✅' if x else '❌' for x in w) + ' |')
-    lines.append(f'| **Thắng / 10 chu trình test** | ' + ' | ' * (len(methods) - 1) +
+    lines.append(f'| **Wins / 10 test cycles** | ' + ' | ' * (len(methods) - 1) +
                  f' | **{wins[0]}/10** | **{wins[1]}/10** |')
     return '\n'.join(lines), wins
 
@@ -130,7 +130,7 @@ def per_cycle_table(res, plant, key, f, low=True):
 def summary_table(res, plant):
     """Trung binh tren 10 chu trinh test (seed-mean truoc, roi cycle-mean)."""
     methods = methods_of(res)
-    lines = ['| # | Chỉ số (TB 10 chu trình test) | Đơn vị | ' + ' | '.join(methods) + ' |',
+    lines = ['| # | Metric (mean over 10 test cycles) | Unit | ' + ' | '.join(methods) + ' |',
              '|' + '---|' * (len(methods) + 3)]
     for i, (key, label, unit, low, f) in enumerate(METRICS, 1):
         vals = {m: np.mean([agg(res[plant][c], m, key)[0] for c in TEST_CYCLES]) for m in methods}
@@ -149,8 +149,8 @@ def training_table():
         if meta['gamma'] != 0.99:
             name += f"-g{meta['gamma']}"
         groups.setdefault(name, []).append(meta)
-    lines = ['| Thuật toán | Số seed | Thời gian train (phút) | Vi phạm ràng buộc khi train (tổng) '
-             '| SOC min / max khi train | Episode đầu tiên đạt ≤ 1.02 × kết quả cuối |',
+    lines = ['| Algorithm | Seeds | Training time (min) | Constraint violations during training (total) '
+             '| SOC min / max during training | First episode reaching ≤ 1.02 × final result |',
              '|---|---|---|---|---|---|']
     for name, metas in groups.items():
         t = np.mean([m['train_time_s'] for m in metas]) / 60
@@ -179,8 +179,8 @@ def fig_gap(res, path):
                edgecolor='#fcfcfb', linewidth=1)
     ax.axhline(0, color=INK, lw=0.8)
     ax.set_xticks(x, [SHORT[c] for c in cycles])
-    ax.set_ylabel('Nhiên liệu vượt DP (%)')
-    ax.set_title('Khoảng cách tới tối ưu toàn cục DP trên 10 chu trình test (thấp hơn = tốt hơn)',
+    ax.set_ylabel('Fuel above DP (%)')
+    ax.set_title('Gap to the DP global optimum on 10 test cycles (lower is better)',
                  loc='left', color=INK)
     ax.legend(ncol=len(methods), loc='upper left')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
@@ -199,10 +199,10 @@ def fig_learning(groups, path, keep):
         axs[0].fill_between(ep, f.min(0), f.max(0), color=c, alpha=0.15, lw=0)
         axs[1].plot(ep, iv.mean(0), color=c, lw=2, label=name)
     axs[0].set_ylim(top=min(axs[0].get_ylim()[1], 8))
-    axs[0].set_title('Nhiên liệu quy đổi trên UDDS sau mỗi episode', loc='left', color=INK)
+    axs[0].set_title('SOC-corrected fuel on UDDS after each episode', loc='left', color=INK)
     axs[0].set_xlabel('Episode'); axs[0].set_ylabel('L/100km'); axs[0].legend()
-    axs[1].set_title('Số bước action bị supervisor sửa khi train', loc='left', color=INK)
-    axs[1].set_xlabel('Episode'); axs[1].set_ylabel('bước / episode')
+    axs[1].set_title('Actions corrected by supervisor during training', loc='left', color=INK)
+    axs[1].set_xlabel('Episode'); axs[1].set_ylabel('steps / episode')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
@@ -219,21 +219,21 @@ def fig_soc(res, path):
             ax.plot(tr[f'nominal|{c}|{m}'], color=COLORS[m], lw=1.6 if m != 'DP' else 2.2, label=m)
         ax.axhline(0.6, color=MUTED, lw=0.8, ls='--')
         ax.set_ylabel('SOC'); ax.set_title(SHORT[c], loc='left', color=INK)
-    axs[0].legend(ncol=len(methods), loc='upper left'); axs[-1].set_xlabel('Thời gian (s)')
+    axs[0].legend(ncol=len(methods), loc='upper left'); axs[-1].set_xlabel('Time (s)')
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
 def fig_battery(res, path):
     methods = ['DP'] + selected(res) + ['Rule']
-    keys = [('throughput_Ah', 'Lưu lượng Ah'), ('ohmic_loss_kJ', 'Tổn hao I²R (kJ)'),
-            ('I_rms', 'Dòng RMS (A)'), ('soc_rms', 'RMS(SOC − 0.6)')]
+    keys = [('throughput_Ah', 'Ah throughput'), ('ohmic_loss_kJ', 'I²R loss (kJ)'),
+            ('I_rms', 'RMS current (A)'), ('soc_rms', 'RMS(SOC − 0.6)')]
     fig, axs = plt.subplots(1, 4, figsize=(11, 3))
     for ax, (k, lab) in zip(axs, keys):
         vals = [np.mean([agg(res['nominal'][c], m, k)[0] for c in TEST_CYCLES]) for m in methods]
         ax.bar(range(len(methods)), vals, color=[COLORS.get(m) for m in methods], width=0.7)
         ax.set_xticks(range(len(methods)), methods, rotation=35, ha='right')
         ax.set_title(lab, loc='left', color=INK); ax.grid(axis='x', visible=False)
-    fig.suptitle('Chỉ số pin, trung bình 10 chu trình test (thấp hơn = pin ít chịu tải hơn)',
+    fig.suptitle('Battery metrics, mean over 10 test cycles (lower = less battery stress)',
                  x=0.01, ha='left', color=INK)
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
